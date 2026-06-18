@@ -8,15 +8,17 @@ A backend system that:
 
 ## Live Deployment (Render)
 
-```
-Base URL: https://<your-render-service>.onrender.com
+**Base URL: `https://withremote-sync.onrender.com`**
 
+```
 POST /sync/run/direct      — run all three sources synchronously
 GET  /sync/status          — recent sync run history
 GET  /metrics/revenue      — total collected revenue
 GET  /metrics/revenue/breakdown  — day-by-day breakdown
 GET  /health               — liveness check
 ```
+
+> Note: Render free tier spins down after 15 minutes of inactivity. First request may take ~30s to wake up.
 
 ---
 
@@ -33,7 +35,7 @@ GET  /health               — liveness check
 ### Setup
 
 ```bash
-git clone <repo>
+git clone https://github.com/Aswin5010/withremote-sync
 cd withremote
 npm install
 cp .env.example .env
