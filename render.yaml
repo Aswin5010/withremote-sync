@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: withremote-sync
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: HUBSPOT_ACCESS_TOKEN
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: GCAL_CLIENT_ID
+        sync: false
+      - key: GCAL_CLIENT_SECRET
+        sync: false
+      - key: GCAL_REFRESH_TOKEN
+        sync: false
+      - key: GCAL_CALENDAR_ID
+        value: primary
+      - key: PORT
+        value: 3000
