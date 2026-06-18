@@ -12,7 +12,7 @@ function transform(raw) {
     name:         nameParts.length ? nameParts.join(' ') : null,
     email:        p.email || null,
     amount_cents: null,
-    status:       p.dealstage || null,
+    status:       p.lifecyclestage || null,
     event_start:  null,
     event_end:    null,
     occurred_at:  p.lastmodifieddate

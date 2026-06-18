@@ -12,7 +12,8 @@ function getClient() {
 const CALENDAR_ID = () => process.env.GCAL_CALENDAR_ID || 'primary';
 
 /**
- * Full fetch: get all events from the calendar.
+ * Full fetch: get events within a 1-week window (past 3 days + next 4 days).
+ * Scoping to a week avoids pulling years of calendar history on first sync.
  * Returns nextCursor = Google's nextSyncToken (used for incremental sync).
  */
 async function fetchFull() {
@@ -21,12 +22,20 @@ async function fetchFull() {
   let pageToken;
   let nextSyncToken;
 
+  const timeMin = new Date();
+  timeMin.setDate(timeMin.getDate() - 3);
+
+  const timeMax = new Date();
+  timeMax.setDate(timeMax.getDate() + 4);
+
   do {
     const res = await calendar.events.list({
       calendarId: CALENDAR_ID(),
       maxResults: 250,
       singleEvents: true,
       orderBy: 'startTime',
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
       pageToken,
     });
     records.push(...(res.data.items || []));

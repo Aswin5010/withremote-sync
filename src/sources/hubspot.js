@@ -2,7 +2,7 @@ const { Client } = require('@hubspot/api-client');
 
 const PROPERTIES = [
   'firstname', 'lastname', 'email',
-  'createdate', 'lastmodifieddate', 'dealstage', 'phone',
+  'createdate', 'lastmodifieddate', 'lifecyclestage', 'phone',
 ];
 
 function getClient() {

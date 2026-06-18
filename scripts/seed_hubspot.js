@@ -4,11 +4,11 @@ const { Client } = require('@hubspot/api-client');
 const client = new Client({ accessToken: process.env.HUBSPOT_ACCESS_TOKEN });
 
 const contacts = [
-  { firstname: 'Alice',   lastname: 'Johnson',  email: 'alice@acme.com',    dealstage: 'closedwon' },
-  { firstname: 'Bob',     lastname: 'Smith',    email: 'bob@beta.io',       dealstage: 'contractsent' },
-  { firstname: 'Carol',   lastname: 'Williams', email: 'carol@corp.net',     dealstage: 'closedwon' },
-  { firstname: 'David',   lastname: 'Brown',    email: 'david@delta.co',    dealstage: 'closedlost' },
-  { firstname: 'Eve',     lastname: 'Davis',    email: 'eve@epsilon.org',   dealstage: 'appointmentscheduled' },
+  { firstname: 'Alice',   lastname: 'Johnson',  email: 'alice@acme.com',   lifecyclestage: 'customer' },
+  { firstname: 'Bob',     lastname: 'Smith',    email: 'bob@beta.io',      lifecyclestage: 'lead' },
+  { firstname: 'Carol',   lastname: 'Williams', email: 'carol@corp.net',   lifecyclestage: 'customer' },
+  { firstname: 'David',   lastname: 'Brown',    email: 'david@delta.co',   lifecyclestage: 'opportunity' },
+  { firstname: 'Eve',     lastname: 'Davis',    email: 'eve@epsilon.org',  lifecyclestage: 'lead' },
 ];
 
 async function seed() {

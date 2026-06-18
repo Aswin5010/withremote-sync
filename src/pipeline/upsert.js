@@ -1,7 +1,10 @@
 const db = require('../db/client');
 
+const BATCH_SIZE = 200;
+
 /**
- * Upsert normalized records into the `records` table.
+ * Upsert normalized records into the `records` table in batches.
+ * Uses UNNEST for bulk insert — one SQL statement per batch instead of one per row.
  * Conflict key: source_id — same record arriving twice is a no-op update (idempotent).
  */
 async function upsertRecords(records) {
@@ -11,12 +14,30 @@ async function upsertRecords(records) {
   try {
     await client.query('BEGIN');
 
-    for (const r of records) {
+    for (let i = 0; i < records.length; i += BATCH_SIZE) {
+      const batch = records.slice(i, i + BATCH_SIZE);
+
+      const sources      = batch.map((r) => r.source);
+      const sourceIds    = batch.map((r) => r.source_id);
+      const recordTypes  = batch.map((r) => r.record_type);
+      const names        = batch.map((r) => r.name);
+      const emails       = batch.map((r) => r.email);
+      const amounts      = batch.map((r) => r.amount_cents);
+      const statuses     = batch.map((r) => r.status);
+      const eventStarts  = batch.map((r) => r.event_start);
+      const eventEnds    = batch.map((r) => r.event_end);
+      const occurredAts  = batch.map((r) => r.occurred_at);
+      const raws         = batch.map((r) => JSON.stringify(r.raw));
+
       await client.query(
         `INSERT INTO records
            (source, source_id, record_type, name, email, amount_cents,
             status, event_start, event_end, occurred_at, raw, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now())
+         SELECT * FROM UNNEST(
+           $1::text[], $2::text[], $3::text[], $4::text[], $5::text[],
+           $6::int[], $7::text[], $8::timestamptz[], $9::timestamptz[],
+           $10::timestamptz[], $11::jsonb[], ARRAY(SELECT now() FROM generate_series(1,$12))
+         )
          ON CONFLICT (source_id) DO UPDATE SET
            name         = EXCLUDED.name,
            email        = EXCLUDED.email,
@@ -27,11 +48,8 @@ async function upsertRecords(records) {
            occurred_at  = EXCLUDED.occurred_at,
            raw          = EXCLUDED.raw,
            updated_at   = now()`,
-        [
-          r.source, r.source_id, r.record_type, r.name, r.email,
-          r.amount_cents, r.status, r.event_start, r.event_end,
-          r.occurred_at, JSON.stringify(r.raw),
-        ]
+        [sources, sourceIds, recordTypes, names, emails, amounts,
+         statuses, eventStarts, eventEnds, occurredAts, raws, batch.length]
       );
     }
 
