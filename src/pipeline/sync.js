@@ -19,11 +19,14 @@ const SOURCES = {
 
 /**
  * Detect a "stale cursor" error from any source.
- * Google Calendar returns 410; we also catch common message patterns.
+ * - Google Calendar returns 410 Gone when syncToken expires
+ * - HubSpot returns 400 when the cursor value is unparseable/invalid
+ * Both should trigger a full backfill rather than crashing or silently failing.
  */
 function isStaleError(err) {
   const status = err?.status || err?.code || err?.response?.status;
   if (status === 410) return true;
+  if (status === 400) return true; // invalid cursor value (e.g. HubSpot search API)
   const msg = (err?.message || '').toLowerCase();
   return msg.includes('410') || msg.includes('sync token') || msg.includes('stale');
 }
