@@ -1,12 +1,13 @@
-const { google } = require('googleapis');
 const https = require('https');
 
+const CALENDAR_ID = () => process.env.GCAL_CALENDAR_ID || 'primary';
+
 /**
- * Refresh the OAuth2 access token using Node's native https module with
- * keepAlive disabled. Gaxios (used by google-auth-library) fails on Render's
- * free tier with "Premature close" — a direct HTTPS call avoids that transport.
+ * Refresh the OAuth2 access token using Node's native https with keepAlive:false.
+ * Gaxios (used by google-auth-library) and Node's native fetch both fail on
+ * Render's free tier with "Premature close". Direct https.request bypasses that.
  */
-function refreshTokenDirect() {
+function refreshToken() {
   return new Promise((resolve, reject) => {
     const body = new URLSearchParams({
       client_id:     process.env.GCAL_CLIENT_ID,
@@ -28,14 +29,14 @@ function refreshTokenDirect() {
       },
       (res) => {
         let data = '';
-        res.on('data', (chunk) => { data += chunk; });
+        res.on('data', (c) => { data += c; });
         res.on('end', () => {
           try {
             const json = JSON.parse(data);
-            if (json.error) return reject(new Error(`OAuth error: ${json.error} — ${json.error_description}`));
+            if (json.error) return reject(new Error(`OAuth: ${json.error_description}`));
             resolve(json.access_token);
           } catch (e) {
-            reject(new Error(`Failed to parse token response: ${data}`));
+            reject(new Error(`Token parse error: ${data}`));
           }
         });
       }
@@ -46,50 +47,76 @@ function refreshTokenDirect() {
   });
 }
 
-async function getClient() {
-  const accessToken = await refreshTokenDirect();
-
-  const auth = new google.auth.OAuth2(
-    process.env.GCAL_CLIENT_ID,
-    process.env.GCAL_CLIENT_SECRET,
-  );
-  auth.setCredentials({ access_token: accessToken });
-
-  return google.calendar({ version: 'v3', auth });
+/**
+ * Make a Google Calendar API GET request using native https with keepAlive:false.
+ */
+function calendarGet(path, accessToken) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: 'www.googleapis.com',
+        path,
+        method:  'GET',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        agent:   new https.Agent({ keepAlive: false }),
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (c) => { data += c; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            if (json.error) {
+              const err = new Error(json.error.message || 'Calendar API error');
+              err.status = json.error.code;
+              return reject(err);
+            }
+            resolve(json);
+          } catch (e) {
+            reject(new Error(`Calendar API parse error: ${data.slice(0, 200)}`));
+          }
+        });
+      }
+    );
+    req.on('error', reject);
+    req.end();
+  });
 }
 
-const CALENDAR_ID = () => process.env.GCAL_CALENDAR_ID || 'primary';
+function buildEventsUrl(params) {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v != null)
+  ).toString();
+  return `/calendar/v3/calendars/${encodeURIComponent(CALENDAR_ID())}/events?${qs}`;
+}
 
 /**
- * Full fetch: get events within a 1-week window (past 3 days + next 4 days).
- * Scoping to a week avoids pulling years of calendar history on first sync.
- * Returns nextCursor = Google's nextSyncToken (used for incremental sync).
+ * Full fetch: events within a 1-week window (past 3 days + next 4 days).
  */
 async function fetchFull() {
-  const calendar = await getClient();
+  const accessToken = await refreshToken();
   const records = [];
   let pageToken;
   let nextSyncToken;
 
   const timeMin = new Date();
   timeMin.setDate(timeMin.getDate() - 3);
-
   const timeMax = new Date();
   timeMax.setDate(timeMax.getDate() + 4);
 
   do {
-    const res = await calendar.events.list({
-      calendarId: CALENDAR_ID(),
-      maxResults: 250,
+    const url = buildEventsUrl({
+      maxResults:   250,
       singleEvents: true,
-      orderBy: 'startTime',
-      timeMin: timeMin.toISOString(),
-      timeMax: timeMax.toISOString(),
+      orderBy:      'startTime',
+      timeMin:      timeMin.toISOString(),
+      timeMax:      timeMax.toISOString(),
       pageToken,
     });
-    records.push(...(res.data.items || []));
-    pageToken = res.data.nextPageToken;
-    nextSyncToken = res.data.nextSyncToken;
+    const res = await calendarGet(url, accessToken);
+    records.push(...(res.items || []));
+    pageToken     = res.nextPageToken;
+    nextSyncToken = res.nextSyncToken;
   } while (pageToken);
 
   return { records, nextCursor: nextSyncToken };
@@ -100,21 +127,20 @@ async function fetchFull() {
  * Google returns HTTP 410 when the syncToken is expired — caller handles fallback.
  */
 async function fetchIncremental(syncToken) {
-  const calendar = await getClient();
+  const accessToken = await refreshToken();
   const records = [];
   let pageToken;
   let nextSyncToken;
 
   do {
-    const res = await calendar.events.list({
-      calendarId: CALENDAR_ID(),
+    const url = buildEventsUrl({
       maxResults: 250,
-      // syncToken goes on the first page only; subsequent pages use pageToken
       ...(pageToken ? { pageToken } : { syncToken }),
     });
-    records.push(...(res.data.items || []));
-    pageToken = res.data.nextPageToken;
-    nextSyncToken = res.data.nextSyncToken;
+    const res = await calendarGet(url, accessToken);
+    records.push(...(res.items || []));
+    pageToken     = res.nextPageToken;
+    nextSyncToken = res.nextSyncToken;
   } while (pageToken);
 
   return { records, nextCursor: nextSyncToken };
