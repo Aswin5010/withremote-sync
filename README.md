@@ -6,6 +6,14 @@ A backend system that:
 
 ---
 
+## Demo Video
+
+[Watch the demo recording](./Screen%20Recording%202026-06-19%20at%201.00.19%E2%80%AFAM.mov)
+
+Covers: live sync run across all 3 sources, revenue metrics endpoints, idempotency and stale-cursor edge cases.
+
+---
+
 ## Live Deployment (Render)
 
 **Base URL: `https://withremote-sync.onrender.com`**
