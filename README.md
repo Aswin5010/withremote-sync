@@ -222,6 +222,6 @@ Each source has a dedicated transformer (`src/transformers/`). Raw payloads are 
 
 ## AI Usage
 
-This project was built with Claude (Anthropic). The full conversation is shared at: `<link>`.
+This project was built with **Claude (Anthropic)** via Claude Code CLI.
 
-Claude was used to scaffold the project structure, write boilerplate, and reason through edge cases (stale cursor detection, idempotency patterns, the allow-list vs exclusion-list tradeoff). All architecture decisions, design tradeoffs, and final code review were done by the developer.
+See [AI_USAGE.md](./AI_USAGE.md) for a full breakdown of what Claude generated, what was directed by the developer, and where Claude was wrong and corrected.
