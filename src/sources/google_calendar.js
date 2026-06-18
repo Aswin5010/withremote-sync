@@ -1,30 +1,59 @@
 const { google } = require('googleapis');
+const https = require('https');
 
 /**
- * Build an auth client with the access token pre-fetched.
- * Explicitly calling getAccessToken() before any API call avoids the implicit
- * token refresh that fails on some hosting environments (Render free tier)
- * due to premature connection close on oauth2.googleapis.com.
+ * Refresh the OAuth2 access token using Node's native https module with
+ * keepAlive disabled. Gaxios (used by google-auth-library) fails on Render's
+ * free tier with "Premature close" — a direct HTTPS call avoids that transport.
  */
+function refreshTokenDirect() {
+  return new Promise((resolve, reject) => {
+    const body = new URLSearchParams({
+      client_id:     process.env.GCAL_CLIENT_ID,
+      client_secret: process.env.GCAL_CLIENT_SECRET,
+      refresh_token: process.env.GCAL_REFRESH_TOKEN,
+      grant_type:    'refresh_token',
+    }).toString();
+
+    const req = https.request(
+      {
+        hostname: 'oauth2.googleapis.com',
+        path:     '/token',
+        method:   'POST',
+        headers: {
+          'Content-Type':   'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(body),
+        },
+        agent: new https.Agent({ keepAlive: false }),
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            if (json.error) return reject(new Error(`OAuth error: ${json.error} — ${json.error_description}`));
+            resolve(json.access_token);
+          } catch (e) {
+            reject(new Error(`Failed to parse token response: ${data}`));
+          }
+        });
+      }
+    );
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
 async function getClient() {
+  const accessToken = await refreshTokenDirect();
+
   const auth = new google.auth.OAuth2(
     process.env.GCAL_CLIENT_ID,
     process.env.GCAL_CLIENT_SECRET,
   );
-  auth.setCredentials({ refresh_token: process.env.GCAL_REFRESH_TOKEN });
-
-  // Force token refresh now, with up to 3 retries
-  let lastErr;
-  for (let i = 0; i < 3; i++) {
-    try {
-      await auth.getAccessToken();
-      break;
-    } catch (err) {
-      lastErr = err;
-      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
-    }
-  }
-  if (lastErr && !auth.credentials?.access_token) throw lastErr;
+  auth.setCredentials({ access_token: accessToken });
 
   return google.calendar({ version: 'v3', auth });
 }
